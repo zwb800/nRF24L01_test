@@ -4,26 +4,7 @@
   * SCK - pin 13
 */
 #include <SPI.h>
-
-#define  R_REGISTER      0x00 //SPI读命令
-#define W_REGISTER      0x20 //SPI写命令
-#define  TX_ADDR       0x10 //发送地址寄存器
-#define  RX_ADDR_P0      0x0A//通道0的接收地址
-#define  EN_AA       0x01//启用自动ACK
-#define EN_RXADDR 0x02//启动接收通道
-#define SETUP_RETR 0x04//设置重发
-#define RF_CH 0x05//设置频段
-#define RF_SETUP 0x06//设置功率
-#define CONFIG 0x00//设置
-#define  W_TX_PAYLOAD    0xA0//发射数据区
-#define  W_RX_PAYLOAD    0x61//接收数据区
-#define FLUSH_TX 0xE1//清空发送区
-#define  FLUSH_RX 0xE2//清空接收区
-#define  STATUS        0x07//状态寄存器
-#define RX_PW_P0 0x11//通道0的数据长度
-
-#define MASK_TX_DS    0x20//发送完毕
-#define MASK_RX_DR    0x40//接收完毕
+#include  "nRF24L01_test.h"
 
 const int slaveSelectPin = 9;//SPI片选
 const int chipEnablePin = 10;//CE 芯片开关
@@ -45,6 +26,7 @@ void setup() {
   digitalWrite(slaveSelectPin,HIGH);//关闭SPI
   SPI.begin();
   Serial.begin(115200);
+  Serial.setTimeout(2);
 
   rxMode();
   Serial.println("Booted");
@@ -55,38 +37,37 @@ void loop() {
   while(true)
   {    
     byte sstatus = readRegister(STATUS);//读取状态
-//    for(int i=0;i<TX_PAYLOAD_WIDTH;i++)
-//    {
-//      txBuffer[i] = k++;  
-//    }
-//    
-//    
-//    if(sstatus & MASK_TX_DS)
-//    {
-//       writeRegister(FLUSH_TX,0);//清空发送区
-//       writeRegister(W_TX_PAYLOAD,txBuffer,TX_PAYLOAD_WIDTH);//写入发射数据
-//       Serial.println("Sended");
-//    }
-//    else
-//    {
-//      Serial.print("Send failed ");
-//      Serial.println(sstatus,BIN);
-//     }
 
-     if(sstatus & MASK_RX_DR)
+   //判断是否发送成功
+//   if(sstatus & MASK_TX_DS)
+//    {
+//        writeRegister(FLUSH_TX,0);//清空发送区
+//        while(!Serial.available())
+//        {
+//        }
+//        int len = Serial.readBytes(txBuffer,TX_PAYLOAD_WIDTH);  
+//         
+//         writeRegister(W_TX_PAYLOAD,txBuffer,len);//写入发射数据
+//         Serial.println("Sended");
+//    }
+    
+   //判断是否接收成功
+    if(sstatus & MASK_RX_DR)
     {
-        readRegister(W_RX_PAYLOAD,rxBuffer,RX_PAYLOAD_WIDTH);//读取接收数据
-       for(int i=0;i<RX_PAYLOAD_WIDTH;i++)
-       {
-          Serial.print(rxBuffer[i],HEX);
-       }
-       Serial.println();
+        byte len = readRegister(R_RX_PL_WID);
+        if(len < 0x21)//32位和以下为正确数据
+        {
+           readRegister(W_RX_PAYLOAD,rxBuffer,len);//读取接收数据
+          Serial.write(rxBuffer,len);
+        }
+       
        writeRegister(FLUSH_RX,0);//清空接收区
     }
-  
-    writeConfigRegister(STATUS,sstatus);//清除RX_DR TX_DS MAX_RT中断
     
-    delay(10);
+    if(sstatus > 0x0F)
+    {
+      writeConfigRegister(STATUS,sstatus);//清除RX_DR TX_DS MAX_RT中断
+    }
   }
 }
 
@@ -99,7 +80,9 @@ void txMode()
   writeConfigRegister(EN_RXADDR,0x01);//启动接收通道0
   writeConfigRegister(SETUP_RETR,0x1a);//重发间隔500us 重发次数10次
   writeConfigRegister(RF_CH,40);//频段40 2.440GHz
-  writeConfigRegister(RF_SETUP,0x0E);//0dBm  1Mbps
+  writeConfigRegister(RF_SETUP,0x0E);//0dBm  2Mbps
+  writeConfigRegister(FEATURE,0x04);//启用动态数据
+  writeConfigRegister(DYNPD,0x01);//启动通道0的动态数据
   writeConfigRegister(CONFIG,0x0e);/*发送模式 启动电源 2位CRC 启动CRC 
   启用发送完毕 接受完毕 达到重试次数中断*/
   writeRegister(W_TX_PAYLOAD,txBuffer,TX_PAYLOAD_WIDTH);//写入发射数据
@@ -116,8 +99,11 @@ void rxMode()
   writeConfigRegister(EN_RXADDR,0x01);//启动接收通道0
   writeConfigRegister(SETUP_RETR,0x1a);//重发间隔500us 重发次数10次
   writeConfigRegister(RF_CH,40);//频段40 2.440GHz
-  writeConfigRegister(RF_SETUP,0x0E);//0dBm  1Mbps
+  writeConfigRegister(RF_SETUP,0x0E);//0dBm  2Mbps
   writeConfigRegister(RX_PW_P0,RX_PAYLOAD_WIDTH);//通道0的接收长度为32位
+  writeConfigRegister(FEATURE,0x04);//启用动态数据 貌似不启用也能用
+  writeConfigRegister(DYNPD,0x01);//启动通道0的动态数据
+
   writeConfigRegister(CONFIG,0x0f);/*接收模式 启动电源 2位CRC 启动CRC 
   启用发送完毕 接受完毕 达到重试次数中断*/
   writeRegister(W_RX_PAYLOAD,rxBuffer,RX_PAYLOAD_WIDTH);//清空接收数据
