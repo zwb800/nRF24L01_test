@@ -7,7 +7,7 @@
 #include  "nRF24L01_test.h"
 #define MODE_TX 0
 #define MODE_RX 1
-#define INIT_MODE MODE_RX
+#define INIT_MODE MODE_TX
 
 const int slaveSelectPin = 9;//SPI片选
 const int chipEnablePin = 10;//CE 芯片开关
@@ -138,6 +138,9 @@ void commonSetting()
   writeConfigRegister(DYNPD, 0x01); //启动通道0的动态数据
   writeRegister(W_TX_PAYLOAD, txBuffer, TX_PAYLOAD_WIDTH); //清空发射数据
   writeRegister(R_RX_PAYLOAD, rxBuffer, RX_PAYLOAD_WIDTH); //清空接收数据
+
+  byte enaa = readRegister(EN_AA);
+  Serial.println(enaa);
 }
 
 byte writeConfigRegister(byte registerAddr, byte* datas, int len)
